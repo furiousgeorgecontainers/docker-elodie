@@ -1,0 +1,93 @@
+name: CI
+
+# Environment Variables
+env:
+  DOCKER_REPO: furiousgeorge/elodie
+  TAG: unstable
+  PUSH: true
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+    tags: # tags that start with vd.d.d
+      - v[0-9]+.[0-9]+.[0-9]+
+  pull_request:
+    branches: [ master ]
+  schedule:
+    - cron: '0 2 * * 0' # Weekly on Sundays at 02:00
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get Next Version
+        id: vars
+        run: |
+
+          ref=$(echo $GITHUB_REF | awk -F'/' '{print $NF}')
+          reftype=$(echo $GITHUB_REF | awk -F'/' '{print $2}')
+          if [ "$reftype" == "tags" ]; then
+            tempversion=$(echo "$ref" | sed -e "s/^v//")
+            if [[ $tempversion =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+              version=$tempversion
+            elif [[ $tempversion =~ ^[0-9]+(\.[0-9]+){2}$ ]]; then
+              version="$tempversion.0"
+            fi
+          fi
+
+          if [ -z "$version" ]; then
+            # Get version from latest image on docker hub
+            version=$(./build/get_docker_version.sh $DOCKER_REPO)
+          fi
+           
+    
+          # if the latest image does not have the version label
+          # get it from a version file in this repository
+          # if the version file does not exist, hardcoded version
+          if [ -n "$version" ]; then
+            echo "Using version from tag or latest: $version"
+          else
+            version=$(cat ./version 2>/dev/null || echo "1.0.0.1");
+            echo "Getting version from this job: $version"
+          fi
+
+          finalversion=$version
+
+          versionstart=$(echo $version | awk 'BEGIN{FS=OFS="."}{NF--; print}' )
+          build=$(echo $version | awk -F'.' '{print $NF}')
+
+          head_sha=$(git rev-parse HEAD)
+          tag_sha=$(git rev-list -n 1 $version 2>/dev/null || true)
+
+          if [ -n "$GITHUB_SHA" ] && [ "$head_sha" != "${tag_sha}" ]; then
+            newbuild=$(($build + 1))
+            finalversion="$versionstart.$newbuild"
+          fi
+
+          # only push to registry if branch is master or tags
+          if [ "$ref" != "master" ] &&  [ "$reftype" != "tags" ]; then
+            echo ::set-env name=PUSH::$(echo "false")
+            echo "Will not push to registry because branch is not master: $ref"
+          fi
+
+          echo ::set-output name=version::$finalversion
+          echo ::set-output name=timestamp::$(date '+%Y-%m-%dT%H:%M:%S%:z')
+          
+      - name: Display new version
+        run: echo ${{steps.vars.outputs.version}}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v1
+        with:
+          add_git_labels: true
+          build_args: BUILD_DATE=${{steps.vars.outputs.timestamp}},VERSION=${{steps.vars.outputs.version}}
+          push: ${{ env.PUSH }}
+          repository: ${{ env.DOCKER_REPO }}
+          tags: ${{ env.TAG }},${{steps.vars.outputs.version}},latest
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKER_USERNAME }}
