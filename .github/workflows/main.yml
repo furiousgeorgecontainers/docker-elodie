@@ -16,7 +16,8 @@ on:
   pull_request:
     branches: [ master ]
   schedule:
-    - cron: '0 2 * * 0' # Weekly on Sundays at 02:00
+    - cron: '*/5 * * * *' # Every 5 minutes
+    #- cron: '0 2 * * 0' # Weekly on Sundays at 02:00
 
 jobs:
   build-and-push:
@@ -82,7 +83,7 @@ jobs:
         run: echo ${{steps.vars.outputs.version}}
 
       - name: PrintEnv
-        run: printenv
+        run: echo $GITHUB_EVENT_NAME
 
       - name: Build and push Docker images
         uses: docker/build-push-action@v1
