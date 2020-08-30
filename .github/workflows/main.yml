@@ -16,7 +16,8 @@ on:
   pull_request:
     branches: [ master ]
   schedule:
-    - cron: '0 2 * * 0' # Weekly on Sundays at 02:00
+    - cron: '*/5 * * * *' # Every 5 minutes
+    #- cron: '0 2 * * 0' # Weekly on Sundays at 02:00
 
 jobs:
   build-and-push:
@@ -42,7 +43,7 @@ jobs:
 
           if [ -z "$version" ]; then
             # Get version from latest image on docker hub
-            version=$(./build/get_docker_version.sh $DOCKER_REPO)
+            version=$(./.github/build/get_docker_version.sh $DOCKER_REPO)
           fi
            
     
@@ -80,6 +81,9 @@ jobs:
           
       - name: Display new version
         run: echo ${{steps.vars.outputs.version}}
+
+      - name: PrintEnv
+        run: echo $GITHUB_EVENT_NAME
 
       - name: Build and push Docker images
         uses: docker/build-push-action@v1
