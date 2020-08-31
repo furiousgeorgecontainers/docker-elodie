@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This is a shell script that you can use to run elodie - this script
+# would live on your host and execute elodie in a docker container.
+
 # directory config
 CONFIG_DIR="${PWD}/config"
 INPUT_DIR="${PWD}/input"
