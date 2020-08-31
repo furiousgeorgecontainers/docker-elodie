@@ -3,7 +3,8 @@ name: CI
 # Environment Variables
 env:
   DOCKER_REPO: furiousgeorge/elodie
-  TAG: unstable
+  SCHEDULE_TAG: unstable
+  TAGS: latest
   PUSH: true
 
 # Controls when the action will run. Triggers the workflow on push or pull request
@@ -16,7 +17,8 @@ on:
   pull_request:
     branches: [ master ]
   schedule:
-    - cron: '0 2 * * 0' # Weekly on Sundays at 02:00
+    #- cron: '0 2 * * 0' # Weekly on Sundays at 02:00
+    - cron: '*/5 * * * *' # Every 5 minutes
 
 jobs:
   build-and-push:
@@ -28,7 +30,6 @@ jobs:
       - name: Get Next Version
         id: vars
         run: |
-
           ref=$(echo $GITHUB_REF | awk -F'/' '{print $NF}')
           reftype=$(echo $GITHUB_REF | awk -F'/' '{print $2}')
           if [ "$reftype" == "tags" ]; then
@@ -45,7 +46,6 @@ jobs:
             version=$(./.github/build/get_docker_version.sh $DOCKER_REPO)
           fi
            
-    
           # if the latest image does not have the version label
           # get it from a version file in this repository
           # if the version file does not exist, hardcoded version
@@ -69,20 +69,34 @@ jobs:
             finalversion="$versionstart.$newbuild"
           fi
 
-          # only push to registry if branch is master or tags
-          if [ "$ref" != "master" ] &&  [ "$reftype" != "tags" ]; then
-            echo ::set-env name=PUSH::$(echo "false")
-            echo "Will not push to registry because branch is not master: $ref"
-          fi
-
           echo ::set-output name=version::$finalversion
           echo ::set-output name=timestamp::$(date '+%Y-%m-%dT%H:%M:%S%:z')
           
       - name: Display new version
         run: echo ${{steps.vars.outputs.version}}
 
-      - name: PrintEnv
-        run: echo $GITHUB_EVENT_NAME
+      - name: Check if this run will push to the registry
+        run: |
+
+          ref=$(echo $GITHUB_REF | awk -F'/' '{print $NF}')
+          reftype=$(echo $GITHUB_REF | awk -F'/' '{print $2}')
+          # only push to registry if branch is master or tags
+          if [ "$ref" != "master" ] &&  [ "$reftype" != "tags" ]; then
+            echo ::set-env name=PUSH::$(echo "false")
+            echo "Will not push to registry because branch is not master: $ref"
+          fi
+
+      - name: Select tags to push
+        run: |
+          if [ "$GITHUB_EVENT_NAME" == "schedule" ]; then
+            # only build and push the unstable tag if it is a schedule
+            echo ::set-env name=TAGS::$(echo "$SCHEDULE_TAG")
+          else
+            # add all tags together into one comma-separated string
+            newtags=$(echo -n "$SCHEDULE_TAG,$TAGS ${{steps.vars.outputs.version}}" | awk -v RS='[, ]' '!a[$0]++' | paste -sd,)
+            echo "Will build tags for: $newtags"
+            echo ::set-env name=TAGS::$(echo "$newtags")
+          fi
 
       - name: Build and push Docker images
         uses: docker/build-push-action@v1
@@ -91,6 +105,7 @@ jobs:
           build_args: BUILD_DATE=${{steps.vars.outputs.timestamp}},VERSION=${{steps.vars.outputs.version}}
           push: ${{ env.PUSH }}
           repository: ${{ env.DOCKER_REPO }}
-          tags: ${{ env.TAG }},${{steps.vars.outputs.version}},latest
+          tags: ${{ env.TAGS }}
+          #tags: ${{ env.TAG }},${{steps.vars.outputs.version}},latest
           password: ${{ secrets.DOCKER_PASSWORD }}
           username: ${{ secrets.DOCKER_USERNAME }}
