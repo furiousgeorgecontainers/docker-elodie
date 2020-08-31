@@ -2,7 +2,7 @@ name: CI
 
 # Environment Variables
 env:
-  DOCKER_REPO: furiousgeorge/elodie
+  DOCKER_PREFIX: docker-
   SCHEDULE_TAG: unstable
   TAGS: latest
   PUSH: true
@@ -25,6 +25,24 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Get target docker repository
+        run: |
+
+          # derive docker registry repository from github repository.
+          # Standard to prefix github repo with docker-
+
+          ghrepo=$(echo $GITHUB_REPOSITORY | awk -F'/' '{print $NF}')
+
+          # remove the prefix from the github repo name
+          repo=${ghrepo#"$DOCKER_PREFIX"}
+          full_repo="${{ secrets.DOCKER_USERNAME }}/$repo"
+          if [ -f ./.github/build/target-docker-repo ]; then
+            echo "Repo override file exists"
+            full_repo=$(cat ./.github/build/target-docker-repo)            
+          fi
+          echo "Target docker repo: $full_repo"
+          echo ::set-env name=DOCKER_REPO::$full_repo
 
       - name: Get Next Version
         id: vars
