@@ -4,8 +4,12 @@ name: CI
 env:
   DOCKER_PREFIX: docker-
   SCHEDULE_TAG: unstable
+
+  # Comma separated list of repos to exclude
+  EXCLUDE_REPOS: furiousgeorgecontainers/github-workflow-master
   TAGS: latest
   PUSH: true
+  SHOULD_RUN: true
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
@@ -23,10 +27,21 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
+      - name: Check exclude repos
+        id: excluded
+        run: |
+          excluded=$(echo "$EXCLUDE_REPOS" | tr , '\n')
+          if (echo "$excluded"  | fgrep -q "$GITHUB_REPOSITORY"); then
+            echo "This repository is excluded from running this workflow"
+            echo ::set-env name=SHOULD_RUN::false
+          fi
+
       - name: Checkout code
+        if: env.SHOULD_RUN == 'true'
         uses: actions/checkout@v2
 
       - name: Get target docker repository
+        if: env.SHOULD_RUN == 'true'
         run: |
 
           # derive docker registry repository from github repository.
@@ -45,6 +60,7 @@ jobs:
           echo ::set-env name=DOCKER_REPO::$full_repo
 
       - name: Get Next Version
+        if: env.SHOULD_RUN == 'true'
         id: vars
         run: |
           ref=$(echo $GITHUB_REF | awk -F'/' '{print $NF}')
@@ -61,6 +77,9 @@ jobs:
           if [ -z "$version" ]; then
             # Get version from latest image on docker hub
             version=$(./.github/build/get_docker_version.sh $DOCKER_REPO)
+            if [ "$version" == "null" ]; then
+              unset version
+            fi
           fi
            
           # if the latest image does not have the version label
@@ -69,7 +88,7 @@ jobs:
           if [ -n "$version" ]; then
             echo "Using version from tag or latest: $version"
           else
-            version=$(cat ./version 2>/dev/null || echo "1.0.0.1");
+            version=$(cat ./version 2>/dev/null || echo "1.0.0.0");
             echo "Getting version from this job: $version"
           fi
 
@@ -90,6 +109,7 @@ jobs:
           echo ::set-output name=timestamp::$(date '+%Y-%m-%dT%H:%M:%S%:z')
           
       - name: Check if this run will push to the registry
+        if: env.SHOULD_RUN == 'true'
         run: |
 
           ref=$(echo $GITHUB_REF | awk -F'/' '{print $NF}')
@@ -103,6 +123,7 @@ jobs:
           fi
 
       - name: Select tags to push
+        if: env.SHOULD_RUN == 'true'
         run: |
           if [ "$GITHUB_EVENT_NAME" == "schedule" ]; then
             # only build and push the unstable tag if it is a schedule
@@ -116,6 +137,7 @@ jobs:
           fi
 
       - name: Display build information
+        if: env.SHOULD_RUN == 'true'
         run: |
           echo "BUILD_DATE: ${{steps.vars.outputs.timestamp}}"
           echo "VERSION: ${{steps.vars.outputs.version}}"
@@ -124,6 +146,7 @@ jobs:
           echo "DOCKER_REPO: $DOCKER_REPO"
 
       - name: Build and push Docker images
+        if: env.SHOULD_RUN == 'true'
         uses: docker/build-push-action@v1
         with:
           add_git_labels: true
