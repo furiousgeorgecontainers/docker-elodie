@@ -12,16 +12,16 @@ RUN \
     git \
     jpeg-dev \
     musl-dev \
-    python-dev \
+    python3-dev \
     zlib-dev && \
  echo "**** Install runtime packages ****" && \
  apk add --no-cache --upgrade \
     bash \
     exiftool \
     perl-image-exiftool \
-    python \
-    python-dev \
-    py-pip \
+    python3 \
+    python3-dev \
+    py3-pip \
     su-exec && \
  echo "**** Install Elodie ***" && \
  git clone https://github.com/jmathai/elodie.git /app && \
