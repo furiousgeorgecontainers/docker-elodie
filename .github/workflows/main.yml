@@ -71,9 +71,6 @@ jobs:
           echo ::set-output name=version::$finalversion
           echo ::set-output name=timestamp::$(date '+%Y-%m-%dT%H:%M:%S%:z')
           
-      - name: Display new version
-        run: echo ${{steps.vars.outputs.version}}
-
       - name: Check if this run will push to the registry
         run: |
 
@@ -83,12 +80,15 @@ jobs:
           if [ "$ref" != "master" ] &&  [ "$reftype" != "tags" ]; then
             echo ::set-env name=PUSH::$(echo "false")
             echo "Will not push to registry because branch is not master: $ref"
+          else
+            echo "This run will attempt to push to the registry"
           fi
 
       - name: Select tags to push
         run: |
           if [ "$GITHUB_EVENT_NAME" == "schedule" ]; then
             # only build and push the unstable tag if it is a schedule
+            echo "This is a scheduled run - only push $SCHEDULE_TAG tag"
             echo ::set-env name=TAGS::$(echo "$SCHEDULE_TAG")
           else
             # add all tags together into one comma-separated string
@@ -96,6 +96,14 @@ jobs:
             echo "Will build tags for: $newtags"
             echo ::set-env name=TAGS::$(echo "$newtags")
           fi
+
+      - name: Display build information
+        run: |
+          echo "BUILD_DATE: ${{steps.vars.outputs.timestamp}}"
+          echo "VERSION: ${{steps.vars.outputs.version}}"
+          echo "PUSH: $PUSH"
+          echo "TAGS: $TAGS"
+          echo "DOCKER_REPO: $DOCKER_REPO"
 
       - name: Build and push Docker images
         uses: docker/build-push-action@v1
@@ -105,6 +113,5 @@ jobs:
           push: ${{ env.PUSH }}
           repository: ${{ env.DOCKER_REPO }}
           tags: ${{ env.TAGS }}
-          #tags: ${{ env.TAG }},${{steps.vars.outputs.version}},latest
           password: ${{ secrets.DOCKER_PASSWORD }}
           username: ${{ secrets.DOCKER_USERNAME }}
