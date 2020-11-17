@@ -15,11 +15,11 @@ env:
 # events but only for the master branch
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
     tags: # tags that start with vd.d.d
       - v[0-9]+.[0-9]+.[0-9]+
   pull_request:
-    branches: [ master ]
+    branches: [ master, main ]
   schedule:
     - cron: '0 2 * * 1' # Weekly on Mondays at 02:00
 
@@ -57,7 +57,7 @@ jobs:
             full_repo=$(cat ./.github/build/target-docker-repo)            
           fi
           echo "Target docker repo: $full_repo"
-          echo ::set-env name=DOCKER_REPO::$full_repo
+          echo "DOCKER_REPO=$full_repo" >> $GITHUB_ENV
 
       - name: Get Next Version
         if: env.SHOULD_RUN == 'true'
