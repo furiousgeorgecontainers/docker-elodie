@@ -33,7 +33,7 @@ jobs:
           excluded=$(echo "$EXCLUDE_REPOS" | tr , '\n')
           if (echo "$excluded"  | fgrep -q "$GITHUB_REPOSITORY"); then
             echo "This repository is excluded from running this workflow"
-            echo ::set-env name=SHOULD_RUN::false
+            echo "SHOULD_RUN=false" >> $GITHUB_ENV
           fi
 
       - name: Checkout code
@@ -116,7 +116,7 @@ jobs:
           reftype=$(echo $GITHUB_REF | awk -F'/' '{print $2}')
           # only push to registry if branch is master or tags
           if [ "$ref" != "master" ] &&  [ "$reftype" != "tags" ]; then
-            echo ::set-env name=PUSH::$(echo "false")
+            echo "PUSH=false" >> $GITHUB_ENV
             echo "Will not push to registry because branch is not master: $ref"
           else
             echo "This run will attempt to push to the registry"
@@ -128,12 +128,22 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" == "schedule" ]; then
             # only build and push the unstable tag if it is a schedule
             echo "This is a scheduled run - only push $SCHEDULE_TAG tag"
-            echo ::set-env name=TAGS::$(echo "$SCHEDULE_TAG")
+            echo "TAGS=$SCHEDULE_TAG" >> $GITHUB_ENV
           else
             # add all tags together into one comma-separated string
+
+
+
             newtags=$(echo -n "$SCHEDULE_TAG,$TAGS ${{steps.vars.outputs.version}}" | awk -v RS='[, ]' '!a[$0]++' | paste -sd,)
+
+            # if building a github release tag, don't push latest
+            reftype=$(echo $GITHUB_REF | awk -F'/' '{print $2}')
+            if [ "$reftype" == "tags" ]; then
+              newtags="${{steps.vars.outputs.version}}"
+            fi
+
             echo "Will build tags for: $newtags"
-            echo ::set-env name=TAGS::$(echo "$newtags")
+            echo "TAGS=$newtags" >> $GITHUB_ENV
           fi
 
       - name: Display build information
