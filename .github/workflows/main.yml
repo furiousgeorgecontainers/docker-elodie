@@ -145,6 +145,10 @@ jobs:
             echo "Will build tags for: $newtags"
             echo "TAGS=$newtags" >> $GITHUB_ENV
           fi
+          # since moving to docker/build-push-action@v2 tags must include the repo name
+          # suffix="-foo"; VARIABLE="aaa,bbb,ccc"; echo ${VARIABLE} | sed -E "s/([^,]+)/\1${suffix}/g"
+          fulltags=$(echo ${TAGS} | sed -E "s/([^,]+)/${DOCKER_REPO}:\1/g")
+          echo "TAGS=$fulltags" >> $GITHUB_ENV
 
       - name: Display build information
         if: env.SHOULD_RUN == 'true'
@@ -157,7 +161,7 @@ jobs:
 
       - name: Build and push Docker images
         if: env.SHOULD_RUN == 'true'
-        uses: docker/build-push-action@v1
+        uses: docker/build-push-action@v2
         with:
           add_git_labels: true
           build_args: BUILD_DATE=${{steps.vars.outputs.timestamp}},VERSION=${{steps.vars.outputs.version}}
